@@ -1,0 +1,5 @@
+#!/bin/bash
+while true; do
+    date
+    sudo python wifi-scanner.py wlp2s0 --ssid EmployeeHotspot TSNOfficeWLAN RSN2OfficeWLAN Guest --min -65
+done
