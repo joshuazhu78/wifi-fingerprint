@@ -73,7 +73,7 @@ def merge_aps(aps_cum, aps_this):
     for k, v in aps_this.items():
         if k in aps:
             aps[k]['Counter'] = aps[k]['Counter'] + 1
-            aps[k]['SignalLevel'] = aps[k]['SignalLevel'] + v
+            aps[k]['SignalLevel'] = aps[k]['SignalLevel'] + v['SignalLevel']
         else:
             aps[k] = v
             aps[k]['Counter'] = 1
