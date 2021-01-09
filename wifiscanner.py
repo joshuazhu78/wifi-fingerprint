@@ -1,5 +1,6 @@
 import argparse
 import os
+import numpy as np
 
 parser = argparse.ArgumentParser(description='WiFi scanner')
 parser.add_argument('ni', type=str, help='network interface name, use `sudo ifconfig -a` to check')
@@ -72,11 +73,10 @@ def merge_aps(aps_cum, aps_this):
     aps = aps_cum
     for k, v in aps_this.items():
         if k in aps:
-            aps[k]['Counter'] = aps[k]['Counter'] + 1
-            aps[k]['SignalLevel'] = aps[k]['SignalLevel'] + v
+            aps[k]['Samples'].append(v['SignalLevel'])
         else:
             aps[k] = v
-            aps[k]['Counter'] = 1
+            aps[k]['Samples'] = [v['SignalLevel']]
     return aps
 
 if __name__ == "__main__":
@@ -86,7 +86,8 @@ if __name__ == "__main__":
         aps_this = parse_scan_results(results)
         aps = merge_aps(aps, aps_this)
     for k, v in aps.items():
-        v['SignalLevel'] = v['SignalLevel'] / v['Counter']
+        v['SignalLevel'] = np.mean(v['Samples'])
+        v['SignalStd'] = np.std(v['Samples'])
 
     sorted_aps = sorted(aps.items(), key=lambda item: item[1]['SignalLevel'], reverse=True)
     if len(sorted_aps) > args.N:
