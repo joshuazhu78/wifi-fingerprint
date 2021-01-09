@@ -1,5 +1,5 @@
 #!/bin/bash
 while true; do
     date
-    sudo python wifi-scanner.py wlp2s0 --ssid TSNOfficeWLAN RSN2OfficeWLAN Guest --min -65 --loc 8W022
+    sudo python wifiscanner.py wlp2s0 --ssid TSNOfficeWLAN RSN2OfficeWLAN Guest --min -65 --loc 8W022
 done
