@@ -1,5 +1,7 @@
 import argparse
 import os
+import numpy as np
+import time
 
 parser = argparse.ArgumentParser(description='WiFi scanner')
 parser.add_argument('ni', type=str, help='network interface name, use `sudo ifconfig -a` to check')
@@ -7,7 +9,7 @@ parser.add_argument('--ssid', type=str, default="*", nargs="+", help='network ss
 parser.add_argument('--min', type=float, default=-65, help='min signal quality in dBm for scanning')
 parser.add_argument('--filename', type=str, default="fingerprint.txt", help='fingerprint file')
 parser.add_argument('--N', type=int, default=16, help='Max number of APs in the fingerprint')
-parser.add_argument('--M', type=int, default=10, help='Number of measurements to avg per location')
+parser.add_argument('--M', type=int, default=20, help='Number of measurements to avg per location')
 parser.add_argument('--loc', type=str, default="8W022", help='fingerprint file')
 
 args = parser.parse_args()
@@ -47,16 +49,16 @@ def fprintf(aps, f, ap_list = []):
     f.write("%s " % args.loc)
     if len(ap_list) == 0:
         for v in aps:
-            f.write("%f " % (v[1]['SignalLevel']))
+            f.write("%f %f " % (v[1]['SignalLevel'], v[1]['SignalStd']))
     else:
         for ap in ap_list:
             for num, ap_ref in enumerate(aps):
                 if ap_ref[0] == ap:
                     break
             if num < len(aps):
-                f.write("%f " % (aps[num][1]['SignalLevel']))
+                f.write("%f %f " % (aps[num][1]['SignalLevel'], aps[num][1]['SignalStd']))
             else:
-                f.write("%s " % 'N/A')
+                f.write("%s %s " % ('N/A', 'N/A'))
     f.write("\n")
 
 def fprintfheaders(aps, f):
@@ -72,21 +74,23 @@ def merge_aps(aps_cum, aps_this):
     aps = aps_cum
     for k, v in aps_this.items():
         if k in aps:
-            aps[k]['Counter'] = aps[k]['Counter'] + 1
-            aps[k]['SignalLevel'] = aps[k]['SignalLevel'] + v['SignalLevel']
+            aps[k]['Samples'].append(v['SignalLevel'])
         else:
             aps[k] = v
-            aps[k]['Counter'] = 1
+            aps[k]['Samples'] = [v['SignalLevel']]
     return aps
 
 if __name__ == "__main__":
     aps = {}
     for m in range(args.M):
+        print("Scan %d/%d" % (m, args.M))
         results = os.popen("sudo iwlist " + args.ni + " scanning").read()
+        time.sleep(0.1)
         aps_this = parse_scan_results(results)
         aps = merge_aps(aps, aps_this)
     for k, v in aps.items():
-        v['SignalLevel'] = v['SignalLevel'] / v['Counter']
+        v['SignalLevel'] = np.mean(v['Samples'])
+        v['SignalStd'] = np.std(v['Samples'])
 
     sorted_aps = sorted(aps.items(), key=lambda item: item[1]['SignalLevel'], reverse=True)
     if len(sorted_aps) > args.N:

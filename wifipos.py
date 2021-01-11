@@ -6,32 +6,32 @@ import numpy as np
 parser = argparse.ArgumentParser(description='WiFi positioning')
 parser.add_argument('ni', type=str, help='network interface name, use `sudo ifconfig -a` to check')
 parser.add_argument('--ssid', type=str, default="*", nargs="+", help='network ssid to scan, default * to scan all')
-parser.add_argument('--min', type=float, default=-65, help='min signal quality in dBm for scanning')
+parser.add_argument('--min', type=float, default=-80, help='min signal quality in dBm for scanning')
 parser.add_argument('--filename', type=str, default="fingerprint.txt", help='fingerprint file')
-parser.add_argument('--N', type=int, default=16, help='Max number of APs in the fingerprint')
-parser.add_argument('--M', type=int, default=10, help='Number of measurements to avg per location')
 
 args = parser.parse_args()
 
-def fprintpos(aps, ap_list, fingerprint):
+def fprintpos(aps, ap_list, fp_mean, fp_std):
     v = []
+    valid = []
+    idx = 0
     for ap in ap_list:
-        for num, ap_ref in enumerate(aps):
-            if ap_ref[0] == ap:
-                break
-        if num < len(aps):
-            v.append(aps[num][1]['SignalLevel'])
+        if ap in aps:
+            v.append(aps[ap]['SignalLevel'])
+            valid.append(idx)
         else:
-            print('error')
-            exit()
-    v = v - np.mean(v)
-    v = v / np.linalg.norm(v)
-    for k, fp in fingerprint.items():
-        print("%s, %f" % (k, np.dot(v, fp)))
+            v.append(args.min)
+        idx = idx + 1
+    for k, m in fp_mean.items():
+        v_ = [v[i] for i in valid]
+        m_ = [m[i] for i in valid]
+        s_ = [fp_std[k][i] for i in valid]
+        print("%s, %f" % (k, np.linalg.norm(np.divide(np.subtract(v_, m_), s_))))
 
 def freadfingerprint(f):
     aplist = f.readlines()
-    fingerprint = {}
+    fp_mean = {}
+    fp_std = {}
     for idx, ap in enumerate(aplist):
         if idx == 0:
             continue
@@ -39,24 +39,14 @@ def freadfingerprint(f):
         loc = words[0]
         for num, word in enumerate(words):
             if num == 0:
-                fingerprint[loc] = []
+                fp_mean[loc] = []
+                fp_std[loc] = []
+            elif num%2 == 1:
+                fp_mean[loc].append(float(word))
             else:
-                fingerprint[loc].append(float(word))
-        fingerprint[loc] = fingerprint[loc] - np.mean(fingerprint[loc])
-        fingerprint[loc] = fingerprint[loc] / np.linalg.norm(fingerprint[loc])
-    
-    return fingerprint
+                fp_std[loc].append(float(word))
 
-def merge_aps(aps_cum, aps_this):
-    aps = aps_cum
-    for k, v in aps_this.items():
-        if k in aps:
-            aps[k]['Counter'] = aps[k]['Counter'] + 1
-            aps[k]['SignalLevel'] = aps[k]['SignalLevel'] + aps_this[k]['SignalLevel']
-        else:
-            aps[k] = v
-            aps[k]['Counter'] = 1
-    return aps
+    return fp_mean, fp_std
 
 if __name__ == "__main__":
     if not os.path.isfile(args.filename):
@@ -66,18 +56,8 @@ if __name__ == "__main__":
     ap_list = fread_aplist(f)
     f.close()
     f = open(args.filename, 'r')
-    fp = freadfingerprint(f)
+    fp_mean, fp_std = freadfingerprint(f)
     f.close()
-    aps = {}
-    for m in range(args.M):
-        results = os.popen("sudo iwlist " + args.ni + " scanning").read()
-        aps_this = parse_scan_results(results)
-        aps = merge_aps(aps, aps_this)
-    for k, v in aps.items():
-        v['SignalLevel'] = v['SignalLevel'] / v['Counter']
-
-    sorted_aps = sorted(aps.items(), key=lambda item: item[1]['SignalLevel'], reverse=True)
-    if len(sorted_aps) > args.N:
-        sorted_aps = sorted_aps[0:args.N]
-
-    fprintpos(sorted_aps, ap_list, fp)
+    results = os.popen("sudo iwlist " + args.ni + " scanning").read()
+    aps = parse_scan_results(results)
+    fprintpos(aps, ap_list, fp_mean, fp_std)
