@@ -1,2 +1,2 @@
 #!/bin/bash
-sudo python wifipos.py wlp2s0 --ssid TSNOfficeWLAN RSN2OfficeWLAN Guest --min -65 --filename fingerprint.txt
+sudo python wifipos.py wlp2s0 --ssid TSNOfficeWLAN RSN2OfficeWLAN Guest --filename fingerprint.txt
