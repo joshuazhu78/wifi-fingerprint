@@ -13,17 +13,20 @@ args = parser.parse_args()
 
 def fprintpos(aps, ap_list, fp_mean, fp_std):
     v = []
+    valid = []
+    idx = 0
     for ap in ap_list:
-        for num, ap_ref in enumerate(aps):
-            if ap_ref[0] == ap:
-                break
-        if num < len(aps):
-            v.append(aps[num][1]['SignalLevel'])
+        if ap in aps:
+            v.append(aps[ap]['SignalLevel'])
+            valid.append(idx)
         else:
-            print('error')
-            exit()
+            v.append(args.min)
+        idx = idx + 1
     for k, m in fp_mean.items():
-        print("%s, %f" % (k, np.linalg.norm(v - m)))
+        v_ = [v[i] for i in valid]
+        m_ = [m[i] for i in valid]
+        s_ = [fp_std[k][i] for i in valid]
+        print("%s, %f" % (k, np.linalg.norm(np.divide(np.subtract(v_, m_), s_))))
 
 def freadfingerprint(f):
     aplist = f.readlines()
@@ -57,4 +60,4 @@ if __name__ == "__main__":
     f.close()
     results = os.popen("sudo iwlist " + args.ni + " scanning").read()
     aps = parse_scan_results(results)
-    fprintpos(sorted_aps, ap_list, fp_mean, fp_std)
+    fprintpos(aps, ap_list, fp_mean, fp_std)

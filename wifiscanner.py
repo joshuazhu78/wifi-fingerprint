@@ -1,6 +1,7 @@
 import argparse
 import os
 import numpy as np
+import time
 
 parser = argparse.ArgumentParser(description='WiFi scanner')
 parser.add_argument('ni', type=str, help='network interface name, use `sudo ifconfig -a` to check')
@@ -82,7 +83,9 @@ def merge_aps(aps_cum, aps_this):
 if __name__ == "__main__":
     aps = {}
     for m in range(args.M):
+        print("Scan %d/%d" % (m, args.M))
         results = os.popen("sudo iwlist " + args.ni + " scanning").read()
+        time.sleep(0.1)
         aps_this = parse_scan_results(results)
         aps = merge_aps(aps, aps_this)
     for k, v in aps.items():
