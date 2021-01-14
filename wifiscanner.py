@@ -83,8 +83,8 @@ def merge_aps(aps_cum, aps_this):
 if __name__ == "__main__":
     aps = {}
     for m in range(args.M):
-        print("Scan %d/%d" % (m, args.M))
         results = os.popen("sudo iwlist " + args.ni + " scanning").read()
+        print("\rScan %d/%d" % (m+1, args.M), end='')
         time.sleep(0.1)
         aps_this = parse_scan_results(results)
         aps = merge_aps(aps, aps_this)
