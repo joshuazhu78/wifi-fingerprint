@@ -9,7 +9,6 @@ parser.add_argument('--ssid', type=str, default="*", nargs="+", help='network ss
 parser.add_argument('--min', type=float, default=-65, help='min signal quality in dBm for scanning')
 parser.add_argument('--fpfilename', type=str, default="fingerprint.txt", help='fingerprint file')
 parser.add_argument('--apfilename', type=str, default="aplist.txt", help='ap list file')
-parser.add_argument('--N', type=int, default=16, help='Max number of APs in the fingerprint')
 parser.add_argument('--M', type=int, default=20, help='Number of measurements to avg per location')
 parser.add_argument('--threshold', type=float, default=0.75, help='threshold to record one AP into fingerprint')
 parser.add_argument('--loc', type=str, default="8W022", help='fingerprint file')
@@ -87,9 +86,10 @@ if __name__ == "__main__":
     for m in range(args.M):
         results = os.popen("sudo iwlist " + args.ni + " scanning").read()
         print("\rScan %d/%d" % (m+1, args.M), end='')
-        time.sleep(0.1)
+        time.sleep(0.5)
         aps_this = parse_scan_results(results)
         aps_orig = merge_aps(aps_orig, aps_this)
+    print("\n")
 
     aps = {}
     for k, v in aps_orig.items():
@@ -100,8 +100,6 @@ if __name__ == "__main__":
         v['SignalStd'] = np.std(v['Samples'])
 
     sorted_aps = sorted(aps.items(), key=lambda item: item[1]['SignalLevel'], reverse=True)
-    if len(sorted_aps) > args.N:
-        sorted_aps = sorted_aps[0:args.N]
     if not os.path.isfile(args.apfilename):
         f = open(args.apfilename, 'a')
         ap_list = fprintaps(sorted_aps, f)
