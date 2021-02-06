@@ -7,9 +7,10 @@ parser = argparse.ArgumentParser(description='WiFi scanner')
 parser.add_argument('ni', type=str, help='network interface name, use `sudo ifconfig -a` to check')
 parser.add_argument('--ssid', type=str, default="*", nargs="+", help='network ssid to scan, default * to scan all')
 parser.add_argument('--min', type=float, default=-65, help='min signal quality in dBm for scanning')
-parser.add_argument('--filename', type=str, default="fingerprint.txt", help='fingerprint file')
-parser.add_argument('--N', type=int, default=16, help='Max number of APs in the fingerprint')
+parser.add_argument('--fpfilename', type=str, default="fingerprint.txt", help='fingerprint file')
+parser.add_argument('--apfilename', type=str, default="aplist.txt", help='ap list file')
 parser.add_argument('--M', type=int, default=20, help='Number of measurements to avg per location')
+parser.add_argument('--threshold', type=float, default=0.75, help='threshold to record one AP into fingerprint')
 parser.add_argument('--loc', type=str, default="8W022", help='fingerprint file')
 
 args = parser.parse_args()
@@ -45,30 +46,30 @@ def parse_scan_results(results):
 
     return aps
 
-def fprintf(aps, f, ap_list = []):
-    f.write("%s " % args.loc)
-    if len(ap_list) == 0:
-        for v in aps:
-            f.write("%f %f " % (v[1]['SignalLevel'], v[1]['SignalStd']))
-    else:
-        for ap in ap_list:
-            for num, ap_ref in enumerate(aps):
-                if ap_ref[0] == ap:
-                    break
-            if num < len(aps):
-                f.write("%f %f " % (aps[num][1]['SignalLevel'], aps[num][1]['SignalStd']))
-            else:
-                f.write("%s %s " % ('N/A', 'N/A'))
-    f.write("\n")
+def fprintf(aps, f, f_fp, ap_list):
+    f_fp.write("%s " % args.loc)
+    for ap_ref in aps:
+        if ap_ref[0] not in ap_list:
+            num_ap = len(ap_list)
+            ap_list[ap_ref[0]] = num_ap
+            f.write("%s %d\n" % (ap_ref[0], num_ap))
+        ap_idx = ap_list[ap_ref[0]]
+        f_fp.write("%d %f %f " % (ap_idx, ap_ref[1]['SignalLevel'], ap_ref[1]['SignalStd']))
+    f_fp.write("\n")
 
-def fprintfheaders(aps, f):
-    for v in aps:
-        f.write("%s " % v[0])
-    f.write("\n")
+def fprintaps(aps, f):
+    ap_list = {}
+    for i, v in enumerate(aps):
+        f.write("%s %d\n" % (v[0], i))
+        ap_list[v[0]] = i
+    return ap_list
 
 def fread_aplist(f):
-    aplist = f.readlines()[0].split(' ')[:-1]
-    return aplist
+    ap_list = {}
+    for line in f.readlines():
+        words = line.split(' ')
+        ap_list[words[0]] = int(words[1])
+    return ap_list
 
 def merge_aps(aps_cum, aps_this):
     aps = aps_cum
@@ -81,28 +82,33 @@ def merge_aps(aps_cum, aps_this):
     return aps
 
 if __name__ == "__main__":
-    aps = {}
+    aps_orig = {}
     for m in range(args.M):
         results = os.popen("sudo iwlist " + args.ni + " scanning").read()
         print("\rScan %d/%d" % (m+1, args.M), end='')
-        time.sleep(0.1)
+        time.sleep(0.5)
         aps_this = parse_scan_results(results)
-        aps = merge_aps(aps, aps_this)
+        aps_orig = merge_aps(aps_orig, aps_this)
+    print("\n")
+
+    aps = {}
+    for k, v in aps_orig.items():
+        if len(v['Samples']) >= args.M * args.threshold:
+            aps[k] = v
     for k, v in aps.items():
         v['SignalLevel'] = np.mean(v['Samples'])
         v['SignalStd'] = np.std(v['Samples'])
 
     sorted_aps = sorted(aps.items(), key=lambda item: item[1]['SignalLevel'], reverse=True)
-    if len(sorted_aps) > args.N:
-        sorted_aps = sorted_aps[0:args.N]
-    if not os.path.isfile(args.filename):
-        f = open(args.filename, 'a')
-        fprintfheaders(sorted_aps, f)
-        ap_list = []
+    if not os.path.isfile(args.apfilename):
+        f = open(args.apfilename, 'a')
+        ap_list = fprintaps(sorted_aps, f)
     else:
-        f = open(args.filename, 'r')
+        f = open(args.apfilename, 'r')
         ap_list = fread_aplist(f)
         f.close()
-        f = open(args.filename, 'a')
-    fprintf(sorted_aps, f, ap_list)
+        f = open(args.apfilename, 'a')
+    f_fp = open(args.fpfilename, 'a')
+    fprintf(sorted_aps, f, f_fp, ap_list)
     f.close()
+    f_fp.close()
